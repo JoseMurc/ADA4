@@ -163,11 +163,35 @@ public final class MenuConsola {
         System.out.printf("  Herramienta '%s' añadida con ID %d.%n", nueva.getNombre(), nueva.getId());
     }
 
+    //REFACTOR - Tecnica 1: Extract Method
+    /*Se extraen los pasos de seleccionar herramienta, pedir periodo y registrar prestamo 
+    en métodos separados para mejorar la legibilidad y mantenibilidad del codigo*/
+
+    /**
+     * Registra el prestamo de una herramienta: pide cual prestar, a quien y las fechas,
+     * y delega el registro en el servicio. Si no hay herramientas disponibles, no hace nada
+     */
     private void prestar() {
+        Optional<Herramienta> herramienta = seleccionarHerramientaParaPrestar();
+        if (herramienta.isEmpty()) {
+            return;
+        }
+        String prestatario = entrada.pedirTexto("Nombre de quien la recibe: ");
+        RangoFechas periodo = pedirPeriodoPrestamo();
+        registrarPrestamo(herramienta.get(), prestatario, periodo);
+    }
+
+    /**
+     * Muestra las herramientas disponibles y pide al usuario cual elegir, devuelve la herramienta elegida o ninguna si no
+     * hay disponibles
+     *
+     * @return un Optional con la herramienta elegida, o un Optional vacio si no hay ninguna disponible
+     */
+    private Optional<Herramienta> seleccionarHerramientaParaPrestar() {
         List<Herramienta> disponibles = gestor.herramientasDisponibles();
         if (disponibles.isEmpty()) {
             System.out.println("\n  No hay herramientas disponibles para prestar.");
-            return;
+            return Optional.empty();
         }
         System.out.println("\n  Herramientas disponibles:");
         for (Herramienta herramienta : disponibles) {
@@ -175,18 +199,29 @@ public final class MenuConsola {
         }
         List<Integer> ids = disponibles.stream().map(Herramienta::getId).toList();
         int id = entrada.pedirOpcion("ID de la herramienta: ", ids);
-        String prestatario = entrada.pedirTexto("Nombre de quien la recibe: ");
+        return gestor.buscarHerramienta(id);
+    }
 
+    /**
+     * Pide la fecha de prestamo y la fecha limite, proponiendo valores por defecto
+     *
+     * @return el rango de fechas introducido por el usuario
+     */
+    private RangoFechas pedirPeriodoPrestamo() {
         LocalDate hoy = fechaActual();
         LocalDate inicio = entrada.pedirFecha("Fecha de préstamo (AAAA-MM-DD, Enter = " + hoy + "): ", hoy);
         LocalDate limitePorDefecto = inicio.plusDays(GestorPrestamos.DIAS_PRESTAMO_DEFECTO);
         LocalDate limite = entrada.pedirFecha(
                 "Fecha límite (AAAA-MM-DD, Enter = " + limitePorDefecto + "): ", limitePorDefecto);
-
         // Técnica 8: Introducción del objeto de parámetros RangoFechas
-        RangoFechas periodo = new RangoFechas(inicio, limite);
-        
-        Prestamo nuevo = gestor.prestar(id, prestatario, periodo);
+        return new RangoFechas(inicio, limite);
+    }
+
+    /**
+     * Registra en el servicio el prestamo ya decidido, guarda los datos y muestra la confirmacion
+     */
+    private void registrarPrestamo(Herramienta herramienta, String prestatario, RangoFechas periodo) {
+        Prestamo nuevo = gestor.prestar(herramienta.getId(), prestatario, periodo);
         guardar();
         System.out.printf("  '%s' prestada a %s hasta %s.%n",
                 nuevo.getHerramienta().getNombre(), nuevo.getPrestatario(), nuevo.getFechaLimite());
@@ -223,6 +258,11 @@ public final class MenuConsola {
             System.out.println("  Devuelta a tiempo, sin penalizacion.");
         }
     }
+
+    
+    //REFACTOR - Tecnica 2: Replace Temp with Query
+    /*Se elimina la vvariable temporal "hoy" y se reemplza por una llamada directa al método fechaActual()
+    que devuelve la fecha actual del sistema*/
 
     private void verPrestamosActivos() {
         List<Prestamo> activos = gestor.prestamosActivos();
