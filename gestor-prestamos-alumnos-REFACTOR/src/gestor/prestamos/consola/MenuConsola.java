@@ -254,6 +254,8 @@ public final class MenuConsola {
 
         //REFACTOR: Separate query from modifier
         gestor.devolver(id, fecha);
+          // Despues consultamos el prestamo usando el metodo separado de la busqueda,
+        // aprovechando que con nuestra tecnica Move Method el modelo ya calculo los dias y la penalizacion.
         Prestamo devuelto = gestor.consultarPrestamo(id);
         guardar();
         System.out.println("  Devolución registrada.");
