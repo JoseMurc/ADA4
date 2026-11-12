@@ -12,8 +12,10 @@ public final class Prestamo {
     private final int id;
     private final Herramienta herramienta;
     private final String prestatario;
-    private final LocalDate fechaPrestamo;
-    private final LocalDate fechaLimite;
+ // REFACTOR: Introduce Parameter Object
+    // Se agruparon las fechas de prestamo y limite en la clase RangoFechas
+    private final RangoFechas periodo;
+    // (quitamos los atributos sueltos de fechaPrestamo y fechaLimite si gustas, o los delegamos)
     private LocalDate fechaDevolucion;
     private int diasRetraso;
     private double penalizacion;
@@ -25,17 +27,16 @@ public final class Prestamo {
      * @param id identificador único, mayor que cero
      * @param herramienta herramienta prestada; no puede ser nula
      * @param prestatario persona que recibe la herramienta; no puede estar vacío
-     * @param fechaPrestamo fecha en que se presta la herramienta
-     * @param fechaLimite fecha máxima de devolución; no puede ser anterior al préstamo
+     * @param periodo
      * @param fechaDevolucion fecha real de devolución, o nula si sigue activo
      * @param diasRetraso días de retraso registrados en la devolución; no negativo
      * @param penalizacion penalización cobrada en euros; no negativa
      * @throws IllegalArgumentException si alguno de los datos no es válido
      */
-    public Prestamo(int id, Herramienta herramienta, String prestatario, LocalDate fechaPrestamo,
-                    LocalDate fechaLimite, LocalDate fechaDevolucion, int diasRetraso, double penalizacion) {
+  public Prestamo(int id, Herramienta herramienta, String prestatario, RangoFechas periodo,
+                        LocalDate fechaDevolucion, int diasRetraso, double penalizacion) {
         if (id <= 0) {
-            throw new IllegalArgumentException("El id del préstamo debe ser positivo");
+            throw new IllegalArgumentException("El id del prestamo debe ser positivo");
         }
         if (herramienta == null) {
             throw new IllegalArgumentException("La herramienta es obligatoria");
@@ -43,23 +44,16 @@ public final class Prestamo {
         if (prestatario == null || prestatario.isBlank()) {
             throw new IllegalArgumentException("El prestatario es obligatorio");
         }
-        if (fechaPrestamo == null || fechaLimite == null) {
-            throw new IllegalArgumentException("Las fechas de préstamo y límite son obligatorias");
-        }
-        if (fechaLimite.isBefore(fechaPrestamo)) {
-            throw new IllegalArgumentException("La fecha límite no puede ser anterior al préstamo");
-        }
-        if (fechaDevolucion != null && fechaDevolucion.isBefore(fechaPrestamo)) {
-            throw new IllegalArgumentException("La devolución no puede ser anterior al préstamo");
+        if (periodo == null) {
+            throw new IllegalArgumentException("El periodo de fechas es obligatorio");
         }
         if (diasRetraso < 0 || penalizacion < 0) {
-            throw new IllegalArgumentException("El retraso y la penalización no pueden ser negativos");
+            throw new IllegalArgumentException("El retraso y la penalizacion no pueden ser negativos");
         }
         this.id = id;
         this.herramienta = herramienta;
         this.prestatario = prestatario.trim();
-        this.fechaPrestamo = fechaPrestamo;
-        this.fechaLimite = fechaLimite;
+        this.periodo = periodo;
         this.fechaDevolucion = fechaDevolucion;
         this.diasRetraso = diasRetraso;
         this.penalizacion = penalizacion;
@@ -86,7 +80,7 @@ public final class Prestamo {
         if (!estaActivo()) {
             return EstadoPrestamo.DEVUELTO;
         }
-        return hoy.isAfter(fechaLimite) ? EstadoPrestamo.ATRASADO : EstadoPrestamo.ACTIVO;
+        return hoy.isAfter(periodo.getLimite()) ? EstadoPrestamo.ATRASADO : EstadoPrestamo.ACTIVO;
     }
 
     /**
@@ -100,7 +94,7 @@ public final class Prestamo {
         if (!estaActivo()) {
             return diasRetraso;
         }
-        return Math.max(0, ChronoUnit.DAYS.between(fechaLimite, hoy));
+        return Math.max(0, ChronoUnit.DAYS.between(periodo.getLimite(), hoy));
     }
 
     /**
@@ -131,13 +125,15 @@ public void registrarDevolucion(LocalDate fecha, double penalizacionPorDia) {
         if (fecha == null) {
             throw new IllegalArgumentException("La fecha de devolución es obligatoria");
         }
-        if (fecha.isBefore(fechaPrestamo)) {
+        // Usamos periodo.getInicio() en lugar de fechaPrestamo
+        if (fecha.isBefore(periodo.getInicio())) {
             throw new IllegalArgumentException("La devolución no puede ser anterior al préstamo");
         }
         this.fechaDevolucion = fecha;
         
         long retraso = Math.max(0,
-                ChronoUnit.DAYS.between(fechaLimite, fecha));
+                // Usamos periodo.getLimite() en lugar de fechaLimite
+                ChronoUnit.DAYS.between(periodo.getLimite(), fecha));
         
         this.diasRetraso = (int) retraso;
         
@@ -194,17 +190,16 @@ public void registrarDevolucion(LocalDate fecha, double penalizacionPorDia) {
      *
      * @return fecha de préstamo
      */
-    public LocalDate getFechaPrestamo() {
-        return fechaPrestamo;
+ public LocalDate getFechaPrestamo() {
+        return periodo.getInicio();
     }
-
     /**
      * Devuelve la fecha máxima de devolución.
      *
      * @return fecha límite
      */
-    public LocalDate getFechaLimite() {
-        return fechaLimite;
+   public LocalDate getFechaLimite() {
+        return periodo.getLimite();
     }
 
     /**
