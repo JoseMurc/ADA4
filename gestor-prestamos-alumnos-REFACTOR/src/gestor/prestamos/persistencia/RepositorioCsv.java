@@ -2,6 +2,7 @@ package gestor.prestamos.persistencia;
 
 import gestor.prestamos.modelo.Herramienta;
 import gestor.prestamos.modelo.Prestamo;
+import gestor.prestamos.modelo.RangoFechas;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -157,7 +158,7 @@ public final class RepositorioCsv {
             LocalDate devolucion = textoDevolucion.isEmpty() ? null : LocalDate.parse(textoDevolucion);
             int diasRetraso = Integer.parseInt(campos.get(6).trim());
             double penalizacion = Double.parseDouble(campos.get(7).trim());
-            return new Prestamo(id, herramienta, campos.get(2), inicio, limite, devolucion, diasRetraso, penalizacion);
+           return new Prestamo(id, herramienta, campos.get(2), new RangoFechas(inicio, limite), devolucion, diasRetraso, penalizacion);
         } catch (IllegalArgumentException | DateTimeException e) {
             throw error(ARCHIVO_PRESTAMOS, numeroLinea, e.getMessage());
         }
