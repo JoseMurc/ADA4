@@ -118,13 +118,13 @@ public final class Prestamo {
      * Registra la devolución de la herramienta, calculando el retraso y la penalización.
      *
      * @param fecha fecha real de devolución; no puede ser anterior al préstamo
+     * @param penalizacionPorDia
      * @throws IllegalStateException si el préstamo ya estaba devuelto
      * @throws IllegalArgumentException si la fecha es nula o anterior al préstamo
      */
-    // REFACTOR: Remove Parameter
-    // Se eliminó el parámetro penalizacionPorDia porque no se utilizaba
-    
-    public void registrarDevolucion(LocalDate fecha) {
+    // REFACTOR: Move Method
+    // Se movio el calculo del retraso y la penalizacion hacia aca para que el objeto maneje sus cuentas
+public void registrarDevolucion(LocalDate fecha, double penalizacionPorDia) {
         if (!estaActivo()) {
             throw new IllegalStateException("El préstamo ya fue devuelto");
         }
@@ -135,6 +135,13 @@ public final class Prestamo {
             throw new IllegalArgumentException("La devolución no puede ser anterior al préstamo");
         }
         this.fechaDevolucion = fecha;
+        
+        long retraso = Math.max(0,
+                ChronoUnit.DAYS.between(fechaLimite, fecha));
+        
+        this.diasRetraso = (int) retraso;
+        
+        this.penalizacion = Math.round(retraso * penalizacionPorDia * 100.0) / 100.0;
     }
 
     /**
