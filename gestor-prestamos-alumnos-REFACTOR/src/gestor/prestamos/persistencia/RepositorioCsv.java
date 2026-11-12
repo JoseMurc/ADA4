@@ -132,8 +132,19 @@ public final class RepositorioCsv {
         }
         try {
             int id = Integer.parseInt(campos.get(0).trim());
-            return new Herramienta(id, campos.get(1),
-                    campos.size() > CAMPOS_HERRAMIENTA && Boolean.parseBoolean(campos.get(2).trim()));
+            /*
+             * Tecnica 3: Introduce Explaining Variable.
+             * El equipo analizo y vio que la condicion que estaba metida directo en el
+             * constructor (campos.size() > ... && Boolean.parseBoolean(...)) no se
+             * entendia a primera vista. Lo mejor aca es meter la tecnica y partirla en
+             * dos variables con nombre: una dice si la linea trae la columna de baja
+             * (hay archivos viejos con solo 2 campos) y la otra dice si la herramienta
+             * esta dada de baja. Se conserva el && para que campos.get(2) solo se lea
+             * cuando la columna existe, igual que antes.
+             */
+            boolean lineaTraeColumnaDeBaja = campos.size() > CAMPOS_HERRAMIENTA;
+            boolean herramientaDadaDeBaja = lineaTraeColumnaDeBaja && Boolean.parseBoolean(campos.get(2).trim());
+            return new Herramienta(id, campos.get(1), herramientaDadaDeBaja);
         } catch (IllegalArgumentException e) {
             throw error(ARCHIVO_HERRAMIENTAS, numeroLinea, e.getMessage());
         }

@@ -1,16 +1,25 @@
 package gestor.prestamos.consola;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
+import java.time.YearMonth;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Scanner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Lectura de datos desde la consola con validación. Repite la petición hasta
  * obtener un valor correcto.
  */
 public final class Entrada {
+
+    /*
+     * Patron AAAA-MM-DD. Lo agregamos para la tecnica 7 (Replace Exception with Test):
+     * antes la unica forma de saber si el texto era fecha era intentar parsearlo y
+     * atrapar el DateTimeParseException, ahora se revisa primero con este patron.
+     */
+    private static final Pattern PATRON_FECHA = Pattern.compile("(\\d{4})-(\\d{2})-(\\d{2})");
 
     private final Scanner scanner;
 
@@ -75,12 +84,39 @@ public final class Entrada {
             if (texto.isEmpty() && valorPorDefecto != null) {
                 return valorPorDefecto;
             }
-            try {
+            /*
+             * Tecnica 7: Replace Exception with Test.
+             * El equipo analizo y vio que aqui el try/catch se usaba como si fuera un if,
+             * porque una fecha mal escrita es algo que pasa normal y no un error raro del
+             * programa. Lo mejor aca es meter la tecnica y preguntar antes con
+             * esFechaValida(); si da true el parse ya no puede fallar, y si da false se
+             * muestra el mismo mensaje de antes y se vuelve a pedir.
+             */
+            if (esFechaValida(texto)) {
                 return LocalDate.parse(texto);
-            } catch (DateTimeParseException e) {
-                System.out.println("  Formato inválido. Usa AAAA-MM-DD.");
             }
+            System.out.println("  Formato inválido. Usa AAAA-MM-DD.");
         }
+    }
+
+    /*
+     * Prueba (test) que sustituye a la excepcion de pedirFecha(): revisa que el texto
+     * tenga forma AAAA-MM-DD y que el mes y el dia existan de verdad (por ejemplo
+     * 2026-02-30 o 2026-13-01 no valen). Se usa YearMonth para saber cuantos dias tiene
+     * el mes y asi tomar en cuenta los anios bisiestos.
+     */
+    private static boolean esFechaValida(String texto) {
+        Matcher partes = PATRON_FECHA.matcher(texto);
+        if (!partes.matches()) {
+            return false;
+        }
+        int anio = Integer.parseInt(partes.group(1));
+        int mes = Integer.parseInt(partes.group(2));
+        int dia = Integer.parseInt(partes.group(3));
+        if (mes < 1 || mes > 12) {
+            return false;
+        }
+        return dia >= 1 && dia <= YearMonth.of(anio, mes).lengthOfMonth();
     }
 
     private String leer(String mensaje) {
