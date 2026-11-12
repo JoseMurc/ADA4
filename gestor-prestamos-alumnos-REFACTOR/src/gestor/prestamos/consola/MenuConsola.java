@@ -252,7 +252,9 @@ public final class MenuConsola {
         LocalDate hoy = LocalDate.now();
         LocalDate fecha = entrada.pedirFecha("Fecha de devolución (AAAA-MM-DD, Enter = " + hoy + "): ", hoy);
 
-        Prestamo devuelto = gestor.devolver(id, fecha);
+        //REFACTOR: Separate query from modifier
+        gestor.devolver(id, fecha);
+        Prestamo devuelto = gestor.consultarPrestamo(id);
         guardar();
         System.out.println("  Devolución registrada.");
         if (devuelto.getDiasRetraso() > 0) {

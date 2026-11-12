@@ -164,24 +164,50 @@ public final class GestorPrestamos {
     }
 
     /**
-     * Registra la devolución de un préstamo activo y calcula su penalización.
-     *
-     * @param prestamoId identificador del préstamo
-     * @param fecha fecha real de devolución
-     * @return el préstamo actualizado
-     * @throws IllegalArgumentException si el préstamo no existe o la fecha no es válida
-     * @throws IllegalStateException si el préstamo ya estaba devuelto
-     */
-    public Prestamo devolver(int prestamoId, LocalDate fecha) {
-        Prestamo prestamo = prestamos.stream()
+    * Registra la devolución de un préstamo activo y calcula su penalización.
+    * Modifica el estado del préstamo sin devolver información del mismo.
+    *
+    * @param prestamoId identificador del préstamo que se desea devolver
+    * @param fecha fecha real de devolución
+    * @throws IllegalArgumentException si el préstamo no existe o la fecha no es válida
+    * @throws IllegalStateException si el préstamo ya estaba devuelto
+    */
+    // REFACTOR: Separate Query from modifier
+    // Se separo la devolucion del libro de la consulta
+    
+    public void devolver(int prestamoId, LocalDate fecha) {
+        Prestamo prestamo = consultarPrestamo(prestamoId);
+        
+        prestamo.registrarDevolucion(fecha);
+        
+        long retraso = Math.max(0,
+                java.time.temporal.ChronoUnit.DAYS.between(
+                        prestamo.getFechaLimite(), fecha));
+        
+        prestamo.setDiasRetraso((int) retraso);
+        
+        prestamo.setPenalizacion(
+                Math.round(retraso * PENALIZACION_POR_DIA * 100.0) / 100.0);
+    }
+    
+    /**
+    * Busca y devuelve un préstamo mediante su identificador.
+    * Este método únicamente consulta la información y no modifica
+    * el estado del préstamo ni del sistema.
+    *
+    * @param prestamoId identificador del préstamo que se desea consultar
+    * @return el préstamo correspondiente al identificador proporcionado
+    * @throws IllegalArgumentException si no existe un préstamo con ese identificador
+    */
+    // REFACTOR: Separate Query from modifier
+    // Se separo la devolucion del libro de la consulta
+    
+    public Prestamo consultarPrestamo(int prestamoId) {
+        return prestamos.stream()
                 .filter(p -> p.getId() == prestamoId)
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("No existe el préstamo con ID " + prestamoId));
-        prestamo.registrarDevolucion(fecha, PENALIZACION_POR_DIA);
-        long retraso = Math.max(0, java.time.temporal.ChronoUnit.DAYS.between(prestamo.getFechaLimite(), fecha));
-        prestamo.setDiasRetraso((int) retraso);
-        prestamo.setPenalizacion(Math.round(retraso * PENALIZACION_POR_DIA * 100.0) / 100.0);
-        return prestamo;
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No existe el préstamo con ID " + prestamoId));
     }
 
     /**
