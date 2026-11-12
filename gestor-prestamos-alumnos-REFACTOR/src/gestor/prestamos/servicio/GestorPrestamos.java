@@ -175,19 +175,13 @@ public final class GestorPrestamos {
     // REFACTOR: Separate Query from modifier
     // Se separo la devolucion del libro de la consulta
     
-    public void devolver(int prestamoId, LocalDate fecha) {
+   public void devolver(int prestamoId, LocalDate fecha) {
+       // primero consultamos el prestamo usando el metodo separado.
         Prestamo prestamo = consultarPrestamo(prestamoId);
         
-        prestamo.registrarDevolucion(fecha);
-        
-        long retraso = Math.max(0,
-                java.time.temporal.ChronoUnit.DAYS.between(
-                        prestamo.getFechaLimite(), fecha));
-        
-        prestamo.setDiasRetraso((int) retraso);
-        
-        prestamo.setPenalizacion(
-                Math.round(retraso * PENALIZACION_POR_DIA * 100.0) / 100.0);
+        // Tecnica 4 (Move Method): mandamos a llamar el metodo en prestamo pasandole
+        // delegamos el calculo y la modificacion directamente al objeto prestamo.
+        prestamo.registrarDevolucion(fecha, PENALIZACION_POR_DIA);
     }
     
     /**
