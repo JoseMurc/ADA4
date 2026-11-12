@@ -5,10 +5,10 @@ import gestor.prestamos.modelo.Herramienta;
 import gestor.prestamos.modelo.Prestamo;
 import gestor.prestamos.persistencia.RepositorioCsv;
 import gestor.prestamos.servicio.GestorPrestamos;
-
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -32,11 +32,16 @@ public final class MenuConsola {
             =========================================
             """;
 
-    private static final List<Integer> OPCIONES = List.of(0, 1, 2, 3, 4, 5, 6, 7, 8);
+    // Acción del menú: cada opción sabe ejecutarse a sí misma.
+    private interface  Accion{
+        void ejecutar();
+    }
 
     private final GestorPrestamos gestor;
     private final RepositorioCsv repositorio;
     private final Entrada entrada;
+    private final Map<Integer, Accion> acciones;
+    private boolean salir;
 
     /**
      * Crea el menú con sus dependencias.
@@ -49,6 +54,16 @@ public final class MenuConsola {
         this.gestor = gestor;
         this.repositorio = repositorio;
         this.entrada = entrada;
+        this.acciones = Map.of(
+                0, () -> salir = true,
+                1, this::listarHerramientas,
+                2, this::anadirHerramienta,
+                3, this::prestar,
+                4, this::devolver,
+                5, this::verPrestamosActivos,
+                6, this::verHistorial,
+                7, this::darDeBaja,
+                8, this::reactivar);
     }
 
     /**
@@ -56,40 +71,16 @@ public final class MenuConsola {
      * negocio se muestran sin cerrar la aplicación.
      */
     public void ejecutar() {
-        boolean salir = false;
         while (!salir) {
             System.out.println(MENU);
-            int opcion = entrada.pedirOpcion("Elige una opción: ", OPCIONES);
+            int opcion = entrada.pedirOpcion("Elige una opción: ", acciones.keySet());
             try {
-                salir = ejecutarOpcion(opcion);
+                acciones.get(opcion).ejecutar();
             } catch (IllegalArgumentException | IllegalStateException e) {
                 System.out.println("  Error: " + e.getMessage());
             }
         }
         System.out.println("¡Hasta luego!");
-    }
-
-    /**
-     * Ejecuta la opción elegida.
-     *
-     * @param opcion número de opción del menú
-     * @return {@code true} si el usuario quiere salir de la aplicación
-     */
-    private boolean ejecutarOpcion(int opcion) {
-        switch (opcion) {
-            case 1 -> listarHerramientas();
-            case 2 -> anadirHerramienta();
-            case 3 -> prestar();
-            case 4 -> devolver();
-            case 5 -> verPrestamosActivos();
-            case 6 -> verHistorial();
-            case 7 -> darDeBaja();
-            case 8 -> reactivar();
-            default -> {
-                return true;
-            }
-        }
-        return false;
     }
 
     private void listarHerramientas() {
@@ -162,31 +153,11 @@ public final class MenuConsola {
         System.out.printf("  Herramienta '%s' añadida con ID %d.%n", nueva.getNombre(), nueva.getId());
     }
 
-    /**
-     * Registra el prestamo de una herramienta: pide cual prestar, a quien y las fechas,
-     * y delega el registro en el servicio. Si no hay herramientas disponibles, no hace nada
-     */
     private void prestar() {
-        Optional<Herramienta> herramienta = seleccionarHerramientaParaPrestar();
-        if (herramienta.isEmpty()) {
-            return;
-        }
-        String prestatario = entrada.pedirTexto("Nombre de quien la recibe: ");
-        FechasPrestamo fechas = pedirFechasPrestamo();
-        registrarPrestamo(herramienta.get(), prestatario, fechas);
-    }
-
-    /**
-     * Muestra las herramientas disponibles y pide al usuario cual elegir, devuelve la herramienta elegida o ninguna si no
-     * hay disponibles
-     *
-     * @return un Optional con la herramienta elegida, o un Optional vacio si no hay ninguna disponible
-     */
-    private Optional<Herramienta> seleccionarHerramientaParaPrestar() {
         List<Herramienta> disponibles = gestor.herramientasDisponibles();
         if (disponibles.isEmpty()) {
             System.out.println("\n  No hay herramientas disponibles para prestar.");
-            return Optional.empty();
+            return;
         }
         System.out.println("\n  Herramientas disponibles:");
         for (Herramienta herramienta : disponibles) {
@@ -194,45 +165,18 @@ public final class MenuConsola {
         }
         List<Integer> ids = disponibles.stream().map(Herramienta::getId).toList();
         int id = entrada.pedirOpcion("ID de la herramienta: ", ids);
-        return gestor.buscarHerramienta(id);
-    }
+        String prestatario = entrada.pedirTexto("Nombre de quien la recibe: ");
 
-    /**
-     * Pide la fecha de prestamo y la fecha limite, proponiendo valores por defecto. Devuelve un tipo de recod
-     * FechasPrestamo que permite manejar mejor los datos de las fechas
-     *
-     * @return las fechas introducidas por el usuario
-     */
-    private FechasPrestamo pedirFechasPrestamo() {
         LocalDate hoy = LocalDate.now();
         LocalDate inicio = entrada.pedirFecha("Fecha de préstamo (AAAA-MM-DD, Enter = " + hoy + "): ", hoy);
         LocalDate limitePorDefecto = inicio.plusDays(GestorPrestamos.DIAS_PRESTAMO_DEFECTO);
         LocalDate limite = entrada.pedirFecha(
                 "Fecha límite (AAAA-MM-DD, Enter = " + limitePorDefecto + "): ", limitePorDefecto);
-        return new FechasPrestamo(inicio, limite);
-    }
 
-    /**
-     * Registra en el servicio el prestamo ya decidido, guarda los datos y muestra la confirmacion
-     *
-     * @param herramienta herramienta prestada
-     * @param prestatario persona que la recibe
-     * @param fechas fecha de prestamo y fecha limite elegidas
-     */
-    private void registrarPrestamo(Herramienta herramienta, String prestatario, FechasPrestamo fechas) {
-        Prestamo nuevo = gestor.prestar(herramienta.getId(), prestatario, fechas.inicio(), fechas.limite());
+        Prestamo nuevo = gestor.prestar(id, prestatario, inicio, limite);
         guardar();
         System.out.printf("  '%s' prestada a %s hasta %s.%n",
                 nuevo.getHerramienta().getNombre(), nuevo.getPrestatario(), nuevo.getFechaLimite());
-    }
-
-    /**
-     * Fecha de prestamo y fecha límite elegidas para un nuevo prestamo, juntas en un record para mejor manejo
-     *
-     * @param inicio fecha en la que se entrega la herramienta
-     * @param limite fecha maxima para devolverla
-     */
-    private record FechasPrestamo(LocalDate inicio, LocalDate limite) {
     }
 
     private void devolver() {
@@ -252,11 +196,7 @@ public final class MenuConsola {
         LocalDate hoy = LocalDate.now();
         LocalDate fecha = entrada.pedirFecha("Fecha de devolución (AAAA-MM-DD, Enter = " + hoy + "): ", hoy);
 
-        //REFACTOR: Separate query from modifier
-        gestor.devolver(id, fecha);
-          // Despues consultamos el prestamo usando el metodo separado de la busqueda,
-        // aprovechando que con nuestra tecnica Move Method el modelo ya calculo los dias y la penalizacion.
-        Prestamo devuelto = gestor.consultarPrestamo(id);
+        Prestamo devuelto = gestor.devolver(id, fecha);
         guardar();
         System.out.println("  Devolución registrada.");
         if (devuelto.getDiasRetraso() > 0) {
@@ -273,28 +213,35 @@ public final class MenuConsola {
             System.out.println("\n  No hay préstamos activos.");
             return;
         }
+        LocalDate hoy = LocalDate.now();
         System.out.println("\n  Préstamos activos:");
         for (Prestamo p : activos) {
-            String situacion;
-            if (p.estado(fechaActual()) == EstadoPrestamo.ATRASADO) {
-                long dias = p.getDiasRetrasoA(fechaActual());
-                double estimada = p.calcularPenalizacion(fechaActual(), GestorPrestamos.PENALIZACION_POR_DIA);
-                situacion = String.format("ATRASADO %d día(s), penalización estimada %.2f €", dias, estimada);
-            } else {
-                situacion = "Al día, vence " + p.getFechaLimite();
-            }
-            System.out.printf("    %s - %s | desde %s | %s%n",
-                    p.getHerramienta().getNombre(), p.getPrestatario(), p.getFechaPrestamo(), situacion);
+            System.out.printf("   %s - %s | desde %s | %s%n",
+            p.getHerramienta().getNombre(), p.getPrestatario(),
+            p.getFechaPrestamo(), describirSituacion(p, hoy));
         }
     }
 
-    /**
-     * Obtiene la fecha actual del sistema para evitar usar LocalDate.now() en variables temporales 
-     * en otros metodos
-     * @return la fecha de hoy
-     */
-    private LocalDate fechaActual() {
-        return LocalDate.now();
+    private String describirSituacion(Prestamo p, LocalDate hoy) {
+        if(estaAtrasado(p, hoy)) {
+            return describirAtraso(p, hoy);
+        }
+
+        return describirAlDia(p);
+    }
+
+    private boolean estaAtrasado(Prestamo p, LocalDate hoy){
+        return p.estado(hoy) == EstadoPrestamo.ATRASADO;
+    }
+
+    private String describirAtraso(Prestamo p, LocalDate hoy){
+        long dias = p.getDiasRetrasoA(hoy);
+        double estimada = p.calcularPenalizacion(hoy, GestorPrestamos.PENALIZACION_POR_DIA);
+        return String.format("ATRASADO %d dia(s), penalizacion estimada %.2f $", dias, estimada);
+    }
+
+    private String describirAlDia(Prestamo p){
+        return "Al dia, vence " + p.getFechaLimite();
     }
 
     private void verHistorial() {
