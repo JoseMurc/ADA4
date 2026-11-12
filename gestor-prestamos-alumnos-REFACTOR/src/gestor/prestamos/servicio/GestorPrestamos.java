@@ -2,6 +2,7 @@ package gestor.prestamos.servicio;
 
 import gestor.prestamos.modelo.Herramienta;
 import gestor.prestamos.modelo.Prestamo;
+import gestor.prestamos.modelo.RangoFechas;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -137,28 +138,29 @@ public final class GestorPrestamos {
                 .toList();
     }
 
-    /**
-     * Registra el préstamo de una herramienta disponible.
+   /**
+     * Registra el prestamo de una herramienta disponible.
      *
      * @param herramientaId identificador de la herramienta a prestar
      * @param prestatario persona que recibe la herramienta
-     * @param fechaPrestamo fecha del préstamo
-     * @param fechaLimite fecha máxima de devolución
-     * @return el préstamo creado
-     * @throws IllegalArgumentException si la herramienta no existe o los datos no son válidos
-     * @throws IllegalStateException si la herramienta ya está prestada
+     * @param periodo objeto que agrupa la fecha de prestamo y la fecha limite
+     * @return el prestamo creado
      */
-    public Prestamo prestar(int herramientaId, String prestatario, LocalDate fechaPrestamo, LocalDate fechaLimite) {
+    // REFACTOR: Introduce Parameter Object
+    // Agrupamos las fechas en RangoFechas para limpiar los parametros
+    public Prestamo prestar(int herramientaId, String prestatario, RangoFechas periodo) {
         Herramienta herramienta = buscarHerramienta(herramientaId)
                 .orElseThrow(() -> new IllegalArgumentException("No existe ninguna herramienta con ID " + herramientaId));
         if (herramienta.isDadaDeBaja()) {
-            throw new IllegalStateException("La herramienta '" + herramienta.getNombre() + "' está dada de baja");
+            throw new IllegalStateException("La herramienta '" + herramienta.getNombre() + "' esta dada de baja");
         }
         if (prestamoActivo(herramienta).isPresent()) {
-            throw new IllegalStateException("La herramienta '" + herramienta.getNombre() + "' ya está prestada");
+            throw new IllegalStateException("La herramienta '" + herramienta.getNombre() + "' ya esta prestada");
         }
         int siguienteId = prestamos.stream().mapToInt(Prestamo::getId).max().orElse(0) + 1;
-        Prestamo nuevo = new Prestamo(siguienteId, herramienta, prestatario, fechaPrestamo, fechaLimite, null, 0, 0.0);
+        
+        // Pasamos el objeto periodo en lugar de las dos fechas sueltas
+        Prestamo nuevo = new Prestamo(siguienteId, herramienta, prestatario, periodo, null, 0, 0.0);
         prestamos.add(nuevo);
         return nuevo;
     }
