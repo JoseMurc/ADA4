@@ -162,11 +162,31 @@ public final class MenuConsola {
         System.out.printf("  Herramienta '%s' añadida con ID %d.%n", nueva.getNombre(), nueva.getId());
     }
 
+    /**
+     * Registra el prestamo de una herramienta: pide cual prestar, a quien y las fechas,
+     * y delega el registro en el servicio. Si no hay herramientas disponibles, no hace nada
+     */
     private void prestar() {
+        Optional<Herramienta> herramienta = seleccionarHerramientaParaPrestar();
+        if (herramienta.isEmpty()) {
+            return;
+        }
+        String prestatario = entrada.pedirTexto("Nombre de quien la recibe: ");
+        FechasPrestamo fechas = pedirFechasPrestamo();
+        registrarPrestamo(herramienta.get(), prestatario, fechas);
+    }
+
+    /**
+     * Muestra las herramientas disponibles y pide al usuario cual elegir, devuelve la herramienta elegida o ninguna si no
+     * hay disponibles
+     *
+     * @return un Optional con la herramienta elegida, o un Optional vacio si no hay ninguna disponible
+     */
+    private Optional<Herramienta> seleccionarHerramientaParaPrestar() {
         List<Herramienta> disponibles = gestor.herramientasDisponibles();
         if (disponibles.isEmpty()) {
             System.out.println("\n  No hay herramientas disponibles para prestar.");
-            return;
+            return Optional.empty();
         }
         System.out.println("\n  Herramientas disponibles:");
         for (Herramienta herramienta : disponibles) {
@@ -174,18 +194,45 @@ public final class MenuConsola {
         }
         List<Integer> ids = disponibles.stream().map(Herramienta::getId).toList();
         int id = entrada.pedirOpcion("ID de la herramienta: ", ids);
-        String prestatario = entrada.pedirTexto("Nombre de quien la recibe: ");
+        return gestor.buscarHerramienta(id);
+    }
 
+    /**
+     * Pide la fecha de prestamo y la fecha limite, proponiendo valores por defecto. Devuelve un tipo de recod
+     * FechasPrestamo que permite manejar mejor los datos de las fechas
+     *
+     * @return las fechas introducidas por el usuario
+     */
+    private FechasPrestamo pedirFechasPrestamo() {
         LocalDate hoy = LocalDate.now();
         LocalDate inicio = entrada.pedirFecha("Fecha de préstamo (AAAA-MM-DD, Enter = " + hoy + "): ", hoy);
         LocalDate limitePorDefecto = inicio.plusDays(GestorPrestamos.DIAS_PRESTAMO_DEFECTO);
         LocalDate limite = entrada.pedirFecha(
                 "Fecha límite (AAAA-MM-DD, Enter = " + limitePorDefecto + "): ", limitePorDefecto);
+        return new FechasPrestamo(inicio, limite);
+    }
 
-        Prestamo nuevo = gestor.prestar(id, prestatario, inicio, limite);
+    /**
+     * Registra en el servicio el prestamo ya decidido, guarda los datos y muestra la confirmacion
+     *
+     * @param herramienta herramienta prestada
+     * @param prestatario persona que la recibe
+     * @param fechas fecha de prestamo y fecha limite elegidas
+     */
+    private void registrarPrestamo(Herramienta herramienta, String prestatario, FechasPrestamo fechas) {
+        Prestamo nuevo = gestor.prestar(herramienta.getId(), prestatario, fechas.inicio(), fechas.limite());
         guardar();
         System.out.printf("  '%s' prestada a %s hasta %s.%n",
                 nuevo.getHerramienta().getNombre(), nuevo.getPrestatario(), nuevo.getFechaLimite());
+    }
+
+    /**
+     * Fecha de prestamo y fecha límite elegidas para un nuevo prestamo, juntas en un record para mejor manejo
+     *
+     * @param inicio fecha en la que se entrega la herramienta
+     * @param limite fecha maxima para devolverla
+     */
+    private record FechasPrestamo(LocalDate inicio, LocalDate limite) {
     }
 
     private void devolver() {
@@ -222,13 +269,12 @@ public final class MenuConsola {
             System.out.println("\n  No hay préstamos activos.");
             return;
         }
-        LocalDate hoy = LocalDate.now();
         System.out.println("\n  Préstamos activos:");
         for (Prestamo p : activos) {
             String situacion;
-            if (p.estado(hoy) == EstadoPrestamo.ATRASADO) {
-                long dias = p.getDiasRetrasoA(hoy);
-                double estimada = p.calcularPenalizacion(hoy, GestorPrestamos.PENALIZACION_POR_DIA);
+            if (p.estado(fechaActual()) == EstadoPrestamo.ATRASADO) {
+                long dias = p.getDiasRetrasoA(fechaActual());
+                double estimada = p.calcularPenalizacion(fechaActual(), GestorPrestamos.PENALIZACION_POR_DIA);
                 situacion = String.format("ATRASADO %d día(s), penalización estimada %.2f €", dias, estimada);
             } else {
                 situacion = "Al día, vence " + p.getFechaLimite();
@@ -236,6 +282,15 @@ public final class MenuConsola {
             System.out.printf("    %s - %s | desde %s | %s%n",
                     p.getHerramienta().getNombre(), p.getPrestatario(), p.getFechaPrestamo(), situacion);
         }
+    }
+
+    /**
+     * Obtiene la fecha actual del sistema para evitar usar LocalDate.now() en variables temporales 
+     * en otros metodos
+     * @return la fecha de hoy
+     */
+    private LocalDate fechaActual() {
+        return LocalDate.now();
     }
 
     private void verHistorial() {
